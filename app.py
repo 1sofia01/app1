@@ -1,88 +1,99 @@
 import streamlit as st
 import pandas as pd
+import requests
 
 # Configuração da página
 st.set_page_config(page_title="Music Top 3 por Gênero", page_icon="🎵", layout="wide")
 
-# Estilização Personalizada
+# Estilização
 st.markdown("""
     <style>
-    .main { background-color: #f0f2f6; }
-    .stHeader { color: #1DB954; }
+    .main { background-color: #f8f9fa; }
     .music-card {
         background-color: white;
-        padding: 10px;
-        border-radius: 10px;
-        border-left: 5px solid #1DB954;
-        margin-bottom: 10px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        padding: 15px;
+        border-radius: 12px;
+        border-left: 6px solid #ef5464;
+        margin-bottom: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .genre-title {
+        color: #333;
+        font-weight: bold;
+        border-bottom: 2px solid #ef5464;
+        padding-bottom: 5px;
+        margin-bottom: 15px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-def main():
-    st.title("🎵 Descoberta Musical: Top 3 por Gênero")
-    st.subheader("Identifique-se para ver as músicas mais ouvidas do momento")
+@st.cache_data(ttl=3600) # Cache de 1 hora
+def buscar_musicas_deezer(genero):
+    """Busca músicas na API gratuita do Deezer por gênero."""
+    try:
+        url = f"https://api.deezer.com/search?q=genre:\"{genero}\"&order=RANKING"
+        response = requests.get(url)
+        if response.status_code == 200:
+            data = response.json()
+            songs = []
+            # Pegamos os top 3 resultados válidos
+            for item in data.get('data', [])[:3]:
+                songs.append({
+                    "Música": item['title'],
+                    "Artista": item['artist']['name'],
+                    "Rank": item['rank'],
+                    "Preview": item['preview']
+                })
+            return songs
+        return []
+    except Exception as e:
+        return []
 
-    # Área de Identificação do Usuário
+def main():
+    st.title("🎵 Top 3 Músicas por Gênero (API Real)")
+    
     with st.sidebar:
         st.header("👤 Identificação")
-        nome_usuario = st.text_input("Digite seu nome ou ID de usuário:")
-        plataforma = st.selectbox("Escolha a plataforma:", ["Spotify", "Deezer", "Apple Music"])
+        nome_usuario = st.text_input("Seu Nome:")
         
-        if nome_usuario:
-            st.success(f"Logado como: {nome_usuario}")
+        # Lista de gêneros populares para consulta
+        generos_interesse = ["Pop", "Rock", "Sertanejo", "Jazz", "Electronic", "Hip Hop"]
+        selecao_generos = st.multiselect("Selecione os gêneros:", generos_interesse, default=["Pop", "Rock", "Jazz"])
 
     if not nome_usuario:
-        st.info("💡 Por favor, identifique-se na barra lateral para carregar os dados da API simulada.")
+        st.info("👋 Olá! Insira seu nome na barra lateral para carregar as músicas da API do Deezer.")
         st.stop()
 
-    # Simulação de dados de uma API (Em um cenário real, você usaria 'requests' ou 'spotipy')
-    @st.cache_data
-    def buscar_top_musicas_api():
-        data = {
-            "Gênero": ["Pop", "Pop", "Pop", "Rock", "Rock", "Rock", "Sertanejo", "Sertanejo", "Sertanejo", "Jazz", "Jazz", "Jazz"],
-            "Música": [
-                "Flowers", "As It Was", "Anti-Hero", 
-                "Lux Æterna", "Rescued", "Lost",
-                "Erro Gostoso", "Nosso Quadro", "Leão",
-                "The Nearness of You", "Blue World", "Don't Know Why"
-            ],
-            "Artista": [
-                "Miley Cyrus", "Harry Styles", "Taylor Swift",
-                "Metallica", "Foo Fighters", "Linkin Park",
-                "Simone Mendes", "Ana Castela", "Marília Mendonça",
-                "Norah Jones", "Mac Miller", "Norah Jones"
-            ],
-            "Ouvintes (Mi)": [120, 115, 110, 45, 42, 40, 95, 92, 90, 15, 12, 10]
-        }
-        return pd.DataFrame(data)
+    st.write(f"### Bem-vindo, **{nome_usuario}**! Buscando as tendências mundiais...")
 
-    st.write(f"### Olá, **{nome_usuario}**! Aqui estão os destaques de hoje na **{plataforma}**:")
-
-    df_musicas = buscar_top_musicas_api()
-    generos = df_musicas["Gênero"].unique()
-
-    # Layout de colunas para os gêneros
-    cols = st.columns(len(generos))
-
-    for i, genero in enumerate(generos):
-        with cols[i]:
-            st.markdown(f"### {genero}")
-            top_3 = df_musicas[df_musicas["Gênero"] == genero].head(3)
-            
-            for index, row in top_3.iterrows():
-                st.markdown(f"""
-                <div class="music-card">
-                    <strong>{row['Música']}</strong><br>
-                    <small>{row['Artista']}</small>
-                </div>
-                """, unsafe_allow_html=True)
+    if not selecao_generos:
+        st.warning("Selecione pelo menos um gênero musical.")
+    else:
+        # Layout de colunas
+        cols = st.columns(len(selecao_generos))
+        
+        for i, genero in enumerate(selecao_generos):
+            with cols[i]:
+                st.markdown(f"<div class='genre-title'>🎸 {genero}</div>", unsafe_allow_html=True)
                 
-    # Visualização de Dados
+                with st.spinner(f"Lendo {genero}..."):
+                    musicas = buscar_musicas_deezer(genero)
+                
+                if musicas:
+                    for music in musicas:
+                        st.markdown(f"""
+                        <div class="music-card">
+                            <div style="font-size: 1.1em; color: #ef5464;"><strong>{music['Música']}</strong></div>
+                            <div style="color: #666;">{music['Artista']}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        # Opcional: Adiciona o player de preview da música
+                        st.audio(music['Preview'], format="audio/mp3")
+                else:
+                    st.error("Nenhum dado encontrado.")
+
     st.divider()
-    st.write("### 📊 Popularidade por Gênero (Ouvintes em Milhões)")
-    st.bar_chart(df_musicas.groupby("Gênero")["Ouvintes (Mi)"].sum())
+    st.caption("Dados fornecidos via API Pública do Deezer. O ranking é baseado na popularidade atual da plataforma.")
 
 if __name__ == "__main__":
     main()
